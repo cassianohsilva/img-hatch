@@ -25,17 +25,16 @@ int main(int argc, char **argv) {
 	std::string out;
 
 	{
-		args::ArgumentParser parser("This is a test program.",
-				"This goes after the options.");
+		args::ArgumentParser parser("A simple program that hatch a video from a file or a camera.");
 
 		args::HelpFlag help(parser, "help", "Display this help menu", { 'h',
 				"help" });
 
 		args::ValueFlag<std::string> input(parser, "input",
-				"Input filename to be hatched", { 'i', "input" });
+				"Input filename to be hatched (if empty, the default camera will be used)", { 'i', "input" });
 
 		args::Positional<std::string> output(parser, "output",
-				"Output filename");
+				"Output filename", args::Options::Required);
 
 		try {
 			parser.ParseCLI(argc, argv);
@@ -52,6 +51,11 @@ int main(int argc, char **argv) {
 			std::cout << e.what();
 
 			return 0;
+		} catch (const args::RequiredError& e) {
+			std::cerr << e.what() << std::endl;
+			std::cerr << parser;
+
+			return 0;
 		} catch (const args::Help&) {
 			std::cout << parser;
 
@@ -64,39 +68,39 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	cv::VideoCapture* capture = nullptr;
-	cv::VideoWriter* writer = nullptr;
+	cv::VideoCapture capture;
+	cv::VideoWriter writer;
 
-	if (!in.empty()) {
+	if (in.empty()) {
 
 		cv::namedWindow("Capture", 1);
 
-		capture = new cv::VideoCapture();
+//		capture = new cv::VideoCapture();
 	} else {
-		capture = new cv::VideoCapture(in);
+		capture.open(in);
 	}
 
-	if (!capture->isOpened()) {
+	if (!capture.isOpened()) {
 
 		if (in.empty()) {
-			std::printf("Cannot load default video capture.");
+			std::printf("Cannot load default video capture.\n");
 		} else {
-			std::printf("Cannot load input file.");
+			std::printf("Cannot load input file.\n");
 		}
 
 		return 1;
 	}
 
-	int frameWidth = capture->get(CV_CAP_PROP_FRAME_WIDTH);
-	int frameHeight = capture->get(CV_CAP_PROP_FRAME_HEIGHT);
-	int frameCount = capture->get(CV_CAP_PROP_FRAME_COUNT);
-	int frameRate = capture->get(CV_CAP_PROP_FPS);
+	int frameWidth = capture.get(CV_CAP_PROP_FRAME_WIDTH);
+	int frameHeight = capture.get(CV_CAP_PROP_FRAME_HEIGHT);
+	int frameCount = capture.get(CV_CAP_PROP_FRAME_COUNT);
+	int frameRate = capture.get(CV_CAP_PROP_FPS);
 
 	if (!frameRate) {
 		frameRate = 24;
 	}
 
-	writer = new cv::VideoWriter(out, CV_FOURCC('X', '2', '6', '4'), frameRate,
+	writer.open(out, CV_FOURCC('X', '2', '6', '4'), frameRate,
 			cv::Size(frameWidth, frameHeight));
 
 	cv::Mat frame;
@@ -105,7 +109,7 @@ int main(int argc, char **argv) {
 	int progressCount = 0;
 	int progress = -1;
 
-	while (capture->read(frame)) {
+	while (capture.read(frame)) {
 
 		hatch(frame, aux);
 
@@ -114,10 +118,10 @@ int main(int argc, char **argv) {
 
 				progress = (progressCount * 100) / frameCount;
 
-				printf("\rProgress:\t%d %%",
+				std::printf("\rProgress:\t%d %%",
 						(progressCount * 100) / frameCount);
 
-				fflush(stdout);
+				std::fflush(stdout);
 			}
 
 			++progressCount;
@@ -125,15 +129,13 @@ int main(int argc, char **argv) {
 			imshow("Capture", aux);
 		}
 
-		writer->write(aux);
+		writer.write(aux);
 	}
 
 	if (frameCount) {
-		printf("\rProgress:\t100 %%\n");
+		std::printf("\rProgress:\t100 %%\n");
 	}
 
-	capture->release();
-	writer->release();
-
-	delete capture;
+	capture.release();
+	writer.release();
 }
